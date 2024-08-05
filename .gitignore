@@ -27,3 +27,5 @@ sample_data/slice2_random_weights.csv
 sample_data/slice1_random_weights.csv
 SlideSeq2.ipynb
 her2.ipynb
+.idea
+__pycache__
