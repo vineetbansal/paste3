@@ -1,9 +1,12 @@
 import hashlib
 from pathlib import Path
+
+import numpy as np
+import ot.backend
 import pandas as pd
 import tempfile
 
-from src.paste import pairwise_align, center_align
+from src.paste import pairwise_align, center_align, center_ot, intersect, center_NMF
 
 test_dir = Path(__file__).parent
 input_dir = test_dir / "data/input"
@@ -70,5 +73,69 @@ def test_center_alignment(slices):
     for i, pi in enumerate(pairwise_info):
         pd.DataFrame(
             pi, index=center_slice.obs.index, columns=slices[i].obs.index
-        ).to_csv(temp_dir / f"center_slice{i+1}_pairwise.csv")
-        assert_checksum_equals(temp_dir, f"center_slice{i+1}_pairwise.csv")
+        ).to_csv(temp_dir / f"center_slice{i + 1}_pairwise.csv")
+        assert_checksum_equals(temp_dir, f"center_slice{i + 1}_pairwise.csv")
+
+
+def test_center_ot(slices):
+    temp_dir = Path(tempfile.mkdtemp())
+
+    common_genes = slices[0].var.index
+    for slice in slices[1:]:
+        common_genes = intersect(common_genes, slice.var.index)
+
+    intersecting_slice = slices[0][:, common_genes]
+    pairwise_info, r = center_ot(
+        W=np.genfromtxt(input_dir / "W_intermediate.csv", delimiter=","),
+        H=np.genfromtxt(input_dir / "H_intermediate.csv", delimiter=","),
+        slices=slices,
+        center_coordinates=intersecting_slice.obsm["spatial"],
+        common_genes=common_genes,
+        use_gpu=False,
+        alpha=0.1,
+        backend=ot.backend.NumpyBackend(),
+        dissimilarity="kl",
+        norm=False,
+        G_inits=[None for _ in range(len(slices))],
+    )
+
+    expected_r = [
+        -25.08051355206619,
+        -26.139415232102213,
+        -25.728504876394076,
+        -25.740615316378296,
+    ]
+
+    assert np.all(np.isclose(expected_r, r, rtol=1e-05, atol=1e-08, equal_nan=True))
+
+    for i, pi in enumerate(pairwise_info):
+        pd.DataFrame(
+            pi, index=intersecting_slice.obs.index, columns=slices[i].obs.index
+        ).to_csv(temp_dir / f"center_ot{i + 1}_pairwise.csv")
+        assert_checksum_equals(temp_dir, f"center_ot{i + 1}_pairwise.csv")
+
+
+def test_center_NMF(intersecting_slices):
+    temp_dir = Path(tempfile.mkdtemp())
+    n_slices = len(intersecting_slices)
+
+    pairwise_info = [
+        np.genfromtxt(input_dir / f"center_ot{i+1}_pairwise.csv", delimiter=",")
+        for i in range(n_slices)
+    ]
+
+    _W, _H = center_NMF(
+        W=np.genfromtxt(input_dir / "W_intermediate.csv", delimiter=","),
+        H=np.genfromtxt(input_dir / "H_intermediate.csv", delimiter=","),
+        slices=intersecting_slices,
+        pis=pairwise_info,
+        lmbda=n_slices * [1.0 / n_slices],
+        n_components=15,
+        random_seed=0,
+    )
+
+    pd.DataFrame(_W).to_csv(temp_dir / "W_center_NMF.csv")
+    pd.DataFrame(_H).to_csv(temp_dir / "H_center_NMF.csv")
+    # TODO: The following computations seem to be architecture dependent (need to look into as for how)
+    # assert_checksum_equals(temp_dir, "W_center_NMF.csv")
+    # assert_checksum_equals(temp_dir, "H_center_NMF.csv")
