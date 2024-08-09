@@ -34,7 +34,7 @@ jobs:
           environment-file: environment.yml
 
       - name: Install package
-        run: pip install .
+        run: pip install -e .
 
       - name: Pytest
         run: pytest
