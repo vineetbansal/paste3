@@ -19,7 +19,7 @@ def test_intersect(slices):
     common_genes = intersect(slices[1].var.index, slices[2].var.index)
     assert np.all(
         np.equal(
-            common_genes, np.genfromtxt(output_dir / "common_genes.csv", dtype=str)
+            common_genes, list(np.genfromtxt(output_dir / "common_genes.csv", dtype=str))
         )
     )
 
