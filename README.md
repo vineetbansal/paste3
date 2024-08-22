@@ -1,7 +1,7 @@
 [![Tests](https://github.com/raphael-group/paste3/actions/workflows/build.yml/badge.svg)](https://github.com/raphael-group/paste3/actions/workflows/build.yml)
 
 
-(Integrating Paste and Paste 2 Here: Sill a work in progress) 
+(Integrating Paste and Paste 2 here: Sill a work in progress) 
 # PASTE
 
 ![PASTE Overview](https://github.com/raphael-group/paste/blob/main/docs/source/_static/images/paste_overview.png)
