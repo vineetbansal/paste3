@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import ot.backend
-from ot.lp import emd
 import pandas as pd
 import tempfile
 
@@ -13,9 +12,6 @@ from paste3.paste import (
     center_ot,
     intersect,
     center_NMF,
-    extract_data_matrix,
-    kl_divergence_backend,
-    to_dense_array,
     my_fused_gromov_wasserstein,
     solve_gromov_linesearch,
 )
@@ -71,6 +67,7 @@ def test_center_alignment(slices):
         n_components=15,
         random_seed=0,
         threshold=0.001,
+        max_iter=2,
         dissimilarity="kl",
         distributions=[slices[i].obsm["weights"] for i in range(len(slices))],
     )
@@ -87,7 +84,7 @@ def test_center_alignment(slices):
     )
     assert_frame_equal(
         pd.DataFrame(center_slice.uns["paste_H"], columns=center_slice.var.index),
-        pd.read_csv(output_dir / "H_center.csv"),
+        pd.read_csv(output_dir / "H_center.csv", index_col=0),
         rtol=1e-05,
         atol=1e-08,
     )
@@ -173,88 +170,48 @@ def test_center_NMF(intersecting_slices):
     )
 
 
-def test_fused_gromov_wasserstein(slices):
+def test_fused_gromov_wasserstein(slices, spot_distance_matrix):
     np.random.seed(0)
     temp_dir = Path(tempfile.mkdtemp())
 
-    common_genes = intersect(slices[0].var.index, slices[1].var.index)
-    sliceA = slices[0][:, common_genes]
-    sliceB = slices[1][:, common_genes]
-
     nx = ot.backend.NumpyBackend()
-    slice1_dist = ot.dist(
-        nx.from_numpy(sliceA.obsm["spatial"]),
-        nx.from_numpy(sliceA.obsm["spatial"]),
-        metric="euclidean",
-    )
-    slice2_dist = ot.dist(
-        nx.from_numpy(sliceB.obsm["spatial"]),
-        nx.from_numpy(sliceB.obsm["spatial"]),
-        metric="euclidean",
-    )
-    slice1_distr = nx.ones((sliceA.shape[0],)) / sliceA.shape[0]
-    slice2_distr = nx.ones((sliceB.shape[0],)) / sliceB.shape[0]
 
-    slice1_X = nx.from_numpy(to_dense_array(extract_data_matrix(sliceA, None)))
-    slice2_X = nx.from_numpy(to_dense_array(extract_data_matrix(sliceB, None)))
-
-    M = nx.from_numpy(kl_divergence_backend(slice1_X + 0.01, slice2_X + 0.01))
-
+    M = np.genfromtxt(input_dir / "gene_distance.csv", delimiter=",")
     pairwise_info, log = my_fused_gromov_wasserstein(
         M,
-        slice1_dist,
-        slice2_dist,
-        slice1_distr,
-        slice2_distr,
+        spot_distance_matrix[0],
+        spot_distance_matrix[1],
+        p=nx.ones((254,)) / 254,
+        q=nx.ones((251,)) / 251,
         G_init=None,
         loss_fun="square_loss",
         alpha=0.1,
         log=True,
         numItermax=200,
     )
-    pd.DataFrame(pairwise_info).to_csv(temp_dir / "fused_gromov_wasserstein.csv")
-    # TODO: Need to figure out where the randomness is coming from
-    # assert_checksum_equals(temp_dir, "fused_gromov_wasserstein.csv")
+    pd.DataFrame(pairwise_info).to_csv(
+        temp_dir / "fused_gromov_wasserstein.csv", index=False
+    )
+    assert_checksum_equals(temp_dir, "fused_gromov_wasserstein.csv")
 
 
-def test_gromov_linesearch(slices):
-    common_genes = intersect(slices[1].var.index, slices[2].var.index)
-    sliceA = slices[1][:, common_genes]
-    sliceB = slices[2][:, common_genes]
+def test_gromov_linesearch(slices, spot_distance_matrix):
 
     nx = ot.backend.NumpyBackend()
-    slice1_dist = ot.dist(
-        nx.from_numpy(sliceA.obsm["spatial"]),
-        nx.from_numpy(sliceA.obsm["spatial"]),
-        metric="euclidean",
-    )
-    slice2_dist = ot.dist(
-        nx.from_numpy(sliceB.obsm["spatial"]),
-        nx.from_numpy(sliceB.obsm["spatial"]),
-        metric="euclidean",
-    )
-    slice1_distr = nx.ones((sliceA.shape[0],)) / sliceA.shape[0]
-    slice2_distr = nx.ones((sliceB.shape[0],)) / sliceB.shape[0]
 
-    slice1_X = nx.from_numpy(to_dense_array(extract_data_matrix(sliceA, None)))
-    slice2_X = nx.from_numpy(to_dense_array(extract_data_matrix(sliceB, None)))
+    G = 1.509115054931788e-05 * np.ones((251, 264))
+    deltaG = np.genfromtxt(input_dir / "deltaG.csv", delimiter=",")
+    costG = 6.0935270338235075
 
-    M = nx.from_numpy(kl_divergence_backend(slice1_X + 0.01, slice2_X + 0.01))
-    slice1_distr, slice2_distr = ot.utils.list_to_array(slice1_distr, slice2_distr)
-
-    constC, hC1, hC2 = ot.gromov.init_matrix(
-        slice1_dist, slice2_dist, slice1_distr, slice2_distr, loss_fun="square_loss"
-    )
-
-    G = slice1_distr[:, None] * slice2_distr[None, :]
-    Mi = M + 0.1 + ot.gromov.gwggrad(constC, hC1, hC2, G)
-    Mi = Mi + nx.min(Mi)
-
-    Gc = emd(slice1_distr, slice2_distr, Mi)
-    deltaG = Gc - G
-    costG = nx.sum(M * G) + 0.1 * ot.gromov.gwloss(constC, hC1, hC2, G)
     alpha, fc, cost_G = solve_gromov_linesearch(
-        G, deltaG, costG, slice1_dist, slice2_dist, M=0.0, reg=1.0, nx=nx
+        G,
+        deltaG,
+        costG,
+        spot_distance_matrix[1],
+        spot_distance_matrix[2],
+        M=0.0,
+        reg=1.0,
+        nx=nx,
     )
     assert alpha == 1.0
     assert fc == 1
