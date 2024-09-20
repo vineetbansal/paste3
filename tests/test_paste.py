@@ -69,6 +69,7 @@ def test_center_alignment(slices):
         threshold=0.001,
         max_iter=2,
         dissimilarity="kl",
+        use_gpu=True,
         distributions=[slices[i].obsm["weights"] for i in range(len(slices))],
     )
     assert_frame_equal(
@@ -196,7 +197,6 @@ def test_fused_gromov_wasserstein(slices, spot_distance_matrix):
 
 
 def test_gromov_linesearch(slices, spot_distance_matrix):
-
     nx = ot.backend.NumpyBackend()
 
     G = 1.509115054931788e-05 * np.ones((251, 264))
