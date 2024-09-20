@@ -32,9 +32,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Build Source
-        run: pip install .
-
       - name: Install Developer Dependencies
         run: pip install .[dev]
 
