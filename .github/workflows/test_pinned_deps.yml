@@ -1,4 +1,4 @@
-name: Install dependencies and run tests
+name: Test Pinned Dependencies
 
 on:
   push:
