@@ -1,4 +1,4 @@
-[![Tests](https://github.com/raphael-group/paste3/actions/workflows/build.yml/badge.svg)](https://github.com/raphael-group/paste3/actions/workflows/build.yml)
+[![Tests](https://github.com/raphael-group/paste3/actions/workflows/build.yml/badge.svg)](https://github.com/raphael-group/paste3/actions/workflows/test_pinned_deps.yml)
 [![Coverage Status](https://coveralls.io/repos/github/raphael-group/paste3/badge.svg?branch=main)](https://coveralls.io/github/raphael-group/paste3?branch=main)
 [![Docs](https://github.com/raphael-group/paste3/actions/workflows/docs.yml/badge.svg)](https://raphael-group.github.io/paste3/)
 
