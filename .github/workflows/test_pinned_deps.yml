@@ -34,7 +34,7 @@ jobs:
           environment-file: environment.yml
 
       - name: Install package
-        run: pip install -e .
+        run: pip install .
 
       - name: Check Versions of Dependencies
         run: pip freeze
