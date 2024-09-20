@@ -1,4 +1,4 @@
-name: Build Package and Test
+name: Test Unpinned Dependencies
 
 on:
   push:
